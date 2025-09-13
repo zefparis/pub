@@ -1,7 +1,7 @@
-import { log } from './logger.js';
-import { scrapeTrending, persistScraped } from './scraper.js';
-import { watermark, uploadToYouTube, uploadToTikTok, markProcessed, recordPost } from './publisher.js';
-import { query } from './db.js';
+import { log } from './logger';
+import { scrapeTrending, persistScraped } from './scraper';
+import { watermark, uploadToYouTube, uploadToTikTok, markProcessed, recordPost } from './publisher';
+import { query } from './db';
 
 /**
  * Orchestration principale :

@@ -1,8 +1,8 @@
 import slugify from 'slugify';
-import { query } from './db.js';
-import { log } from './logger.js';
+import { query } from './db';
+import { log } from './logger';
 import { Request, Response } from 'express';
-import { addToBrevoList } from './brevo.js';
+import { addToBrevoList } from './brevo';
 
 export async function createSmartLink(videoId: string, targetUrl: string, sourcePlatform?: string) {
   const slug = `${slugify(targetUrl.split('/').slice(-1)[0] || 'offer', { lower: true })}-${Math.random().toString(36).slice(2,7)}`;

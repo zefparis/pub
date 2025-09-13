@@ -1,5 +1,5 @@
-import { query } from './db.js';
-import { log } from './logger.js';
+import { query } from './db';
+import { log } from './logger';
 
 export async function getDashboardStats() {
   const [videos, posts, clicks, revenues, emails, sources] = await Promise.all([

@@ -1,5 +1,5 @@
-import { config } from './config.js';
-import { log } from './logger.js';
+import { config } from './config';
+import { log } from './logger';
 
 export async function addToBrevoList(email: string) {
   if (!config.brevoApiKey) {

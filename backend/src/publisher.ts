@@ -1,8 +1,8 @@
-import { query } from './db.js';
-import { log } from './logger.js';
+import { query } from './db';
+import { log } from './logger';
 import ffmpeg from 'fluent-ffmpeg';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
-import { config } from './config.js';
+import { config } from './config';
 
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 

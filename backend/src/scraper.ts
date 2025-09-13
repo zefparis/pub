@@ -1,6 +1,6 @@
-import { query } from './db.js';
-import { log } from './logger.js';
-import { config } from './config.js';
+import { query } from './db';
+import { log } from './logger';
+import { config } from './config';
 import { v4 as uuidv4 } from 'uuid';
 import youtubedl from 'youtube-dl-exec';
 

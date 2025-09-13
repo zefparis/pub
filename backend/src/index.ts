@@ -1,13 +1,13 @@
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
-import { config } from './config.js';
+import { config } from './config';
 import path from 'path';
 import fs from 'fs';
-import { ensureSchema, query } from './db.js';
-import { log } from './logger.js';
-import { getDashboardStats, updateViewsForPosts } from './metrics.js';
-import { handleLanding, handleRedirect, handleEmail } from './smartlinks.js';
+import { ensureSchema, query } from './db';
+import { log } from './logger';
+import { getDashboardStats, updateViewsForPosts } from './metrics';
+import { handleLanding, handleRedirect, handleEmail } from './smartlinks';
 
 const app = express();
 app.use(cors());
