@@ -1,44 +1,62 @@
-import { scrapeTrending, persistScraped } from './scraper.js';
 import { log } from './logger.js';
+import { scrapeTrending, persistScraped } from './scraper.js';
+import { watermark, uploadToYouTube, uploadToTikTok, markProcessed, recordPost } from './publisher.js';
 import { query } from './db.js';
-import { createSmartLink } from './smartlinks.js';
-import { watermark, uploadToTikTok, uploadToYouTube, markProcessed, recordPost } from './publisher.js';
-import { config } from './config.js';
 
-const DEFAULT_NICHES = (config.niches?.split(',') || ['ads', 'gadgets', 'finance', 'motivation']).map((x: string) => x.trim());
-const PIPELINE_EVERY_MINUTES = parseInt(config.pipelineEveryMinutes || '10', 10);
-const VIDEOS_PER_NICHE = parseInt(config.videosPerNiche || '5', 10);
-const MAX_DURATION_SECONDS = parseInt(config.maxDurationSeconds || '60', 10);
+/**
+ * Orchestration principale :
+ * - scrape vidéos
+ * - watermark
+ * - upload stub
+ * - update DB
+ */
+export async function runPipeline(niche = 'gadgets', limit = 3) {
+  await log('info', 'Pipeline started', { niche, limit });
 
-export async function runPipeline({ niches = DEFAULT_NICHES, limit = VIDEOS_PER_NICHE, targetPlatforms = ['youtube','tiktok'] as ('youtube'|'tiktok')[] } = {}) {
-  await log('info', 'Pipeline started', { niches, limit });
-  for (const niche of niches) {
-    const items = await scrapeTrending(niche, limit);
-    await persistScraped(items);
-  }
+  // 1. Scraper trending
+  const scraped = await scrapeTrending(niche, limit);
+  await persistScraped(scraped);
 
-  const { rows: videos } = await query<{ id: string; title: string; url: string; status: string }>(
-    "select id, title, url, status from videos where status = 'scraped' limit $1",
-    [limit]
-  );
+  for (const video of scraped) {
+    try {
+      await log('info', 'Processing video', { id: video.video_id, title: video.title });
 
-  for (const v of videos) {
-    // Simulate watermarking with a placeholder path
-    const processedPath = await watermark(v.url, config.watermarkText);
-    await markProcessed(v.id, processedPath);
+      // 2. Fichier local simulé (stub) → en vrai, faudrait download
+      const fakeInputPath = `/tmp/${video.video_id}.mp4`;
 
-    for (const platform of targetPlatforms) {
-      const extId = platform === 'youtube' ? await uploadToYouTube(processedPath, v.title || 'Faceless Clip') : await uploadToTikTok(processedPath, v.title || 'Faceless Clip');
-      await recordPost(v.id, platform, extId);
+      // 3. Watermark
+      const processedPath = await watermark(fakeInputPath, `IAS - ${niche}`);
+
+      // 4. Upload stub (YouTube + TikTok)
+      const ytId = await uploadToYouTube(processedPath, video.title);
+      await recordPost(video.video_id, 'youtube', ytId);
+
+      const ttId = await uploadToTikTok(processedPath, video.title);
+      await recordPost(video.video_id, 'tiktok', ttId);
+
+      // 5. Mark processed
+      await markProcessed(video.video_id, processedPath);
+
+      await log('info', 'Video processed & posted', { video_id: video.video_id });
+    } catch (err) {
+      await log('error', 'Pipeline error for video', { id: video.video_id, err });
     }
-
-    // Smartlink to a placeholder affiliate URL; in production, map niche -> offer
-    const targetUrl = `https://www.amazon.com/?tag=${config.amazonAssociateId || 'affiliate-20'}`;
-    await createSmartLink(v.id, targetUrl, 'video');
-
-    await query("update videos set status = 'posted' where id = $1", [v.id]);
   }
 
-  await log('info', 'Pipeline completed', { processed: videos.length });
+  await log('info', 'Pipeline finished', { niche });
 }
 
+/**
+ * Job simple qui peut être appelé par workers/seed.ts
+ */
+if (process.argv[1] === new URL(import.meta.url).pathname) {
+  runPipeline(process.env.NICHE || 'tech', Number(process.env.LIMIT || 3))
+    .then(() => {
+      console.log('✅ Pipeline complete');
+      process.exit(0);
+    })
+    .catch((err) => {
+      console.error('❌ Pipeline failed', err);
+      process.exit(1);
+    });
+}

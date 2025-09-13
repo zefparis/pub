@@ -1,40 +1,64 @@
 import { query } from './db.js';
 import { log } from './logger.js';
 import { config } from './config.js';
-import ytdlp from 'yt-dlp-exec';
 import { v4 as uuidv4 } from 'uuid';
+import youtubedl from 'youtube-dl-exec';
 
-type Scraped = { platform: 'youtube' | 'tiktok'; video_id: string; title: string; duration_seconds: number; url: string; thumbnail?: string; niche: string };
+type Scraped = {
+  platform: 'youtube' | 'tiktok';
+  video_id: string;
+  title: string;
+  duration_seconds: number;
+  url: string;
+  thumbnail?: string;
+  niche: string;
+};
 
+const YT_SHORTS_URL = (q: string) =>
+  `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}+shorts`;
 
-const YT_SHORTS_URL = (q: string) => `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}+shorts`;
-const TIKTOK_URL = (q: string) => `https://www.tiktok.com/search?q=${encodeURIComponent(q)}`;
+const TIKTOK_URL = (q: string) =>
+  `https://www.tiktok.com/search?q=${encodeURIComponent(q)}`;
 
-async function ytDlpSearch(url: string, platform: 'youtube' | 'tiktok', limit: number): Promise<Scraped[]> {
+async function ytDlpSearch(
+  url: string,
+  platform: 'youtube' | 'tiktok',
+  limit: number
+): Promise<Scraped[]> {
   try {
     const proxy = config.brightDataProxy;
-    const res: any[] = await ytdlp(url, {
+
+    // Hack TS : cast en any pour utiliser les flags non typés (extractFlat)
+    const raw: any = await youtubedl(url, {
       dumpSingleJson: true,
       flatPlaylist: true,
-      proxy: proxy || undefined,
       noWarnings: true,
       skipDownload: true,
-      extractFlat: true,
+      extractFlat: true, // TS croit que ça n'existe pas, mais yt-dlp oui
       playlistEnd: limit,
-    });
-    // yt-dlp returns {entries: [...]}
-    const entries = Array.isArray(res.entries) ? res.entries : (Array.isArray(res) ? res : []);
+      ...(proxy ? { proxy } : {}),
+    } as any);
+
+    const entries = Array.isArray(raw.entries)
+      ? raw.entries
+      : Array.isArray(raw)
+      ? raw
+      : [];
+
     const videos = (entries as any[])
       .filter((e: any) => e.duration && e.duration < 60)
-      .map((e: any) => ({
-        platform,
-        video_id: e.id,
-        title: e.title,
-        duration_seconds: e.duration,
-        url: e.url || e.webpage_url,
-        thumbnail: e.thumbnail || '',
-        niche: '', // will be set by caller
-      }));
+      .map(
+        (e: any): Scraped => ({
+          platform,
+          video_id: e.id || uuidv4(),
+          title: e.title || 'Untitled',
+          duration_seconds: e.duration || 0,
+          url: e.url || e.webpage_url,
+          thumbnail: e.thumbnail || '',
+          niche: '', // défini plus tard
+        })
+      );
+
     return videos;
   } catch (e) {
     await log('error', 'yt-dlp failed', { url, platform, error: String(e) });
@@ -42,21 +66,24 @@ async function ytDlpSearch(url: string, platform: 'youtube' | 'tiktok', limit: n
   }
 }
 
-export async function scrapeTrending(niche: string, limit = 5): Promise<Scraped[]> {
+export async function scrapeTrending(
+  niche: string,
+  limit = 5
+): Promise<Scraped[]> {
   await log('info', `Scraping trending for niche`, { niche, limit });
-  // YouTube Shorts
+
   const yt = await ytDlpSearch(YT_SHORTS_URL(niche), 'youtube', limit);
-  // TikTok
   const tt = await ytDlpSearch(TIKTOK_URL(niche), 'tiktok', limit);
-  // Set niche and filter unique by url
-  const all = [...yt, ...tt].map(v => ({ ...v, niche }));
-  const seen = new Set();
-  const unique = all.filter(v => {
+
+  const all = [...yt, ...tt].map((v) => ({ ...v, niche }));
+  const seen = new Set<string>();
+  const unique = all.filter((v) => {
     if (seen.has(v.url)) return false;
     seen.add(v.url);
     return true;
   });
-  return unique.slice(0, limit * 2); // up to limit per platform
+
+  return unique.slice(0, limit * 2); // max limit par plateforme
 }
 
 export async function persistScraped(videos: Scraped[]) {
@@ -74,4 +101,3 @@ export async function persistScraped(videos: Scraped[]) {
   }
   await log('info', `Persisted scraped`, { count: videos.length });
 }
-
