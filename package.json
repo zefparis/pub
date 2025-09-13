@@ -1,0 +1,24 @@
+{
+  "name": "faceless-ads-autopilot",
+  "private": true,
+  "workspaces": [
+    "backend",
+    "frontend",
+    "workers",
+    "db"
+  ],
+  "scripts": {
+    "dev:backend": "pnpm --filter backend dev",
+    "build:backend": "pnpm --filter backend build",
+    "start:backend": "pnpm --filter backend start",
+    "dev:frontend": "pnpm --filter frontend dev",
+    "build:frontend": "pnpm --filter frontend build",
+    "preview:frontend": "pnpm --filter frontend preview",
+    "dev": "concurrently -n api,web -c blue,green \"pnpm dev:backend\" \"pnpm dev:frontend\"",
+    "seed": "pnpm --filter workers seed"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
+
